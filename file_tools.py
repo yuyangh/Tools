@@ -16,7 +16,6 @@ from sys import argv
 import requests
 
 
-
 def copy_files(old_directory, new_directory, fileList=None, postfix=""):
     '''
     :param old_directory: original directory
@@ -97,59 +96,29 @@ def download_files(urllist, directory=os.getcwd() + "/"):
             print(str(round(count / len(urllist) * 100, 3)) + "% completed")
 
 
+def merge_files(meragefiledir=None):
+    # 获取目标文件夹的路径
+    if meragefiledir == None:
+        meragefiledir = os.getcwd()
+    # 获取当前文件夹中的文件名称列表
+    filenames = os.listdir(meragefiledir)
+    # 打开当前目录下的result.txt文件，如果没有则创建
+    file = open('result.txt', 'w')
+    # 向文件中写入字符
+
+    # 先遍历文件名
+    for filename in filenames:
+        filepath = meragefiledir + ''
+        filepath = filepath + filename
+        # 遍历单个文件，读取行数
+        for line in open(filepath):
+            file.writelines(line)
+        file.write('\n')
+    # 关闭文件
+    file.close()
+
+
 if __name__ == "__main__":
-    '''
-    national="/Users/yuyanghuang/Downloads/Data/shopfront_counter_screenshot/From_National_Geographic_Magazine_screenshot_cropped/"
-    citizenfour="/Users/yuyanghuang/Downloads/Data/shopfront_counter_screenshot/Citizenfour_screenshot/"
-    so_sorry="/Users/yuyanghuang/Downloads/Data/shopfront_counter_screenshot/so_sorry_English_Subtitles_YouTube_screenshot/"
-    office="/Users/yuyanghuang/Downloads/Data/shopfront_counter_screenshot/office_video_screenshot/"
-    risk="/Users/yuyanghuang/Downloads/Data/shopfront_counter_screenshot/Risk_2016_screenshot/"
-    new0 = "/Users/yuyanghuang/Downloads/Data/shopfront_orginal_file/test_data_20180719/0/"
-    copy_files(national, new0, postfix="_national")
-    copy_files(citizenfour, new0, postfix="_citizenfour")
-    copy_files(so_sorry, new0, postfix="_so_sorry")
-    copy_files(office, new0, postfix="_office")
-    copy_files(risk, new0, postfix="_risk")
-    '''
-    '''
-    shopfront="/Users/yuyanghuang/Downloads/Data/shopfront_picture/"
-    new1 = "/Users/yuyanghuang/Downloads/Data/shopfront_orginal_file/test_data_20180719/1/"
-    copy_files(shopfront, new1, postfix="_top100thousand")
-    '''
-    '''
-    train_extra0="/Users/yuyanghuang/Downloads/Data/ILSVRC2013_DET_train_extra/ILSVRC2013_DET_train_extra0/"
-    train_extra1 = "/Users/yuyanghuang/Downloads/Data/ILSVRC2013_DET_train_extra/ILSVRC2013_DET_train_extra1/"
-    train_extra2 = "/Users/yuyanghuang/Downloads/Data/ILSVRC2013_DET_train_extra/ILSVRC2013_DET_train_extra2/"
-    train_extra3 = "/Users/yuyanghuang/Downloads/Data/ILSVRC2013_DET_train_extra/ILSVRC2013_DET_train_extra3/"
-    train_extra4 = "/Users/yuyanghuang/Downloads/Data/ILSVRC2013_DET_train_extra/ILSVRC2013_DET_train_extra4/"
-    new0 = "/Users/yuyanghuang/Downloads/Data/shopfront_orginal_file/test_data_20180719/0/"
-    copy_files(train_extra0, new0)
-    copy_files(train_extra1, new0)
-    copy_files(train_extra2, new0)
-    copy_files(train_extra3, new0)
-    copy_files(train_extra4, new0)
-    '''
-    '''
-    path0="/Users/yuyanghuang/Downloads/Data/shopfront_orginal_file/test_tfdata_20180720/0/"
-    path1="/Users/yuyanghuang/Downloads/Data/shopfront_orginal_file/test_tfdata_20180720/1/"
-    pathLostInHongkong="/Users/yuyanghuang/Downloads/Data/shopfront_counter_screenshot/Lost_in_Hongkong_screenshot/"
-    deleteNullFile(path1)
-    copy_files(pathLostInHongkong,path0,select_random(pathLostInHongkong,300))
-    '''
 
-
-    # with open("/Users/yuyanghuang/PycharmProjects/TF/iip-ocr-header-classification/slim/temp.txt",mode="r") as f:
-    #     download_files(f.readlines(),"/Users/yuyanghuang/Downloads/online_test/")
-
-    # select_random(path0,3)
-
-    # detectNullFile("/Users/yuyanghuang/Downloads/online_test")
     for file in os.listdir("/Users/yuyang/Downloads"):
         print(file)
-    # originalDirectory = "/Users/yuyanghuang/PycharmProjects/MachineLearning/OCR_Project/data/门头定位-数据图片/"
-    # newDirectory = "/Users/yuyanghuang/PycharmProjects/MachineLearning/OCR_Project/data/门头定位-数据图片 estimate对比不一致 原图/"
-    # selectedFilesListPath = '/Users/yuyanghuang/PycharmProjects/MachineLearning/OCR_Project/data/differentEstimatedPicturePath.txt'
-    # filesList = os.listdir(originalDirectory)
-    # copyFilesListFile = open(selectedFilesListPath, mode="r", encoding='utf-8')
-    # copyFilesList = copyFilesListFile.readlines()
-    # copyFilesListFile.close()
