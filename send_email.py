@@ -6,9 +6,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.utils import COMMASPACE
 
-SENDER = 'yuyanghyy@gmail.com'
+
+
+'''
+Here to open access for gmail
+https://myaccount.google.com/lesssecureapps
+'''
+SENDER = 'xxx@gmail.com'
 SMTP_SERVER = 'smtp.gmail.com'
-USER_ACCOUNT = {'username':'yuyanghyy@gmail.com', 'password':'Hyymark25'}
+USER_ACCOUNT = {'username':'xxx@gmail.com', 'password':'xxx'}
 SUBJECT = "Test Test"
 
 
@@ -30,7 +36,7 @@ def send_mail(receiver, text, sender=SENDER, user_account=USER_ACCOUNT, subject=
         print('Something went wrong...')
 
 if __name__=="__main__":
-    receiver_list=['markhuanghyy@outlook.com','yuyangh@usc.edu']
+    receiver_list=['xxx@outlook.com','xxx@usc.edu']
     text=""
     for receiver in receiver_list:
         subject=""
