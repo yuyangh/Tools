@@ -5,6 +5,7 @@ import numbers
 import openpyxl
 import json
 import os
+import pprint
 
 
 def read_07_Excel_sheet(path, sheet_name='Sheet1'):
@@ -163,7 +164,7 @@ def get_mentor_info_json(sheet):
     '''
     read mentor index, name, email
     :param sheet:
-    :return: mentor_info_dict: key: email, values: name and email
+    :return: mentor_info_dict: key: email, values: dictionary: name, email
     '''
     mentor_info_dict = dict()
     for row in sheet.rows:
@@ -173,11 +174,25 @@ def get_mentor_info_json(sheet):
             email = row[2].value.strip().lower()
             # print(index,name,email)
             if email not in mentee_info_dict.keys():
-                mentor_info_dict[email] = {'index': index, 'name': name}
+                mentor_info_dict[email] = {'index': index, 'name': name, 'mentee': []}
             else:
                 print("DUPLICATE EMAIL")
-    print(mentor_info_dict)
+    pprint.pprint(mentor_info_dict)
     return mentor_info_dict
+
+
+def append_mentee_to_mentor(sheet, mentee_info_dict, mentor_info_dict):
+    '''
+
+    :param sheet:
+    :param mentee_info_dict:
+    :param mentor_info_dict:
+    :return:
+    '''
+    '''
+    append mentee to mentor
+    '''
+    pass
 
 
 def change_email_info_name(sheet, mentee_info_dict, mentor_info_dict):
@@ -207,6 +222,7 @@ if __name__ == "__main__":
     print("mentor_mentee_dict_1st", len(mentor_mentee_dict_1st), mentor_mentee_dict_1st)
 
     sheet_info = read_07_Excel_sheet(mentor_mentee_index_sheet_path, "Mentor")
+    get_mentor_info_json(sheet_info)
     mentor_info_dict = get_mentor_info(sheet_info)
 
     print()
