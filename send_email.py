@@ -7,9 +7,8 @@ from email.mime.image import MIMEImage
 from email.utils import COMMASPACE
 
 
-
 '''
-Here to open access for gmail
+Here to open smtp access for gmail
 https://myaccount.google.com/lesssecureapps
 '''
 SENDER = 'xxx@gmail.com'

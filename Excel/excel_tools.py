@@ -80,21 +80,36 @@ def excel07_fill_in_blanks(path,row=None,col=None,range=[0,0]):
                 print(previous_value)
 
 def get_selected_mentors(sheet,mentee_info_dict):
+    '''
+
+    :param sheet:
+    :param mentee_info_dict: key : mentee email, value: a list has email, linkedIn, facebook
+    :return: mentor_mentee_dict_1st key : mentor index, value: list of mentee emails
+    '''
     mentor_mentee_dict_1st=dict()
     for row in sheet.rows:
         if row[2].value.lower()=="mentee":
             email = row[1].value.strip()
+            # wills are index of each mentor
             first_will=int(row[4].value.split(" ")[0])
             second_will = int(row[5].value.split(" ")[0])
+
+            # a dictionary: key : mentor index, value: list of mentee emails
             if first_will not in mentor_mentee_dict_1st:
                 mentor_mentee_dict_1st[first_will]=[email]
             else:
                 mentor_mentee_dict_1st[first_will].append(email)
-            # todo continue add to mentee info
+
+            # todo add second will
+            if second_will not in mentor_mentee_dict_1st:
+                mentor_mentee_dict_1st[second_will]=[email]
+            else:
+                mentor_mentee_dict_1st[second_will].append(email)
+            # append linkedIn, facebook
             mentee_info_dict[email].append(row[6].value)
             mentee_info_dict[email].append(row[7].value)
 
-    print("1st round mentor numbers:",len(mentor_mentee_dict_1st))
+    print("1st round total chosen mentor numbers:",len(mentor_mentee_dict_1st))
     for key in mentor_mentee_dict_1st.keys():
         print("{:3}".format(key),end=" ")
         # "{:3} mentees".format(len(mentor_mentee_dict_1st[key]))
@@ -110,7 +125,7 @@ def get_mentee_info(sheet):
             index=int(row[0].value)
             name=row[1].value.strip()
             email=row[2].value.strip()
-            print(index,name,email)
+            # print(index,name,email)
             mentee_info_dict[email]=[name]
     print(mentee_info_dict)
     return mentee_info_dict
@@ -132,9 +147,11 @@ def change_email_info_name(sheet,mentee_info_dict,mentor_info_dict):
         for col in row:
             if not isinstance(col.value,int):
                 if col.value in mentee_info_dict.keys():
-                    print("{:30}".format(str(mentee_info_dict[col.value][0:3])+": "+col.value+","),end="")
+                    for info in mentee_info_dict[col.value][0:1]:
+                        print("Mentee: {:30}".format(str(info)),end="")
+                    print("{:30}".format(col.value+","),end="\n")
             else:
-                print("Mentor: {:50}".format(mentor_info_dict[col.value]),end="")
+                print("Mentor: {:50}".format(mentor_info_dict[col.value]),end=" \n")
         print()
 
 
@@ -150,10 +167,18 @@ if __name__=="__main__":
     path="/Users/yuyang/Downloads/Mentee选择Mentor意向和感谢信 - for all (Responses).xlsx"
     sheet=read_07_Excel_sheet(path,"Form Responses 1")
     mentor_mentee_dict_1st=get_selected_mentors(sheet,mentee_info_dict)
+    print("mentor_mentee_dict_1st",len(mentor_mentee_dict_1st),mentor_mentee_dict_1st)
 
     sheet_info = read_07_Excel_sheet(mentor_mentee_index_sheet_path, "Mentor")
     mentor_info_dict = get_mentor_info(sheet_info)
 
     print()
-    sheet = read_07_Excel_sheet(path, "Statistics")
+    sheet = read_07_Excel_sheet(path, "Statistics 1st round")
+    print("Statistics 1st round")
     change_email_info_name(sheet,mentee_info_dict,mentor_info_dict)
+
+    print()
+    # two round overall statistics
+    # sheet = read_07_Excel_sheet(path, "Statistics all")
+    # print("Statistics all")
+    # change_email_info_name(sheet, mentee_info_dict, mentor_info_dict)
