@@ -25,12 +25,15 @@ def print_entire_sheet(sheet):
         print()
 
 
-'''
-@:return a list of map {name:string,url:string,JSONdata:json} from Excel document
-'''
+def write_to_json(file_path, data):
+    with open(file_path, 'w') as outfile:
+        json.dump(data, outfile)
 
 
 def getAllNameJSONDataURL(path):
+    '''
+    @:return a list of map {name:string,url:string,JSONdata:json} from Excel document
+    '''
     data = []
     wb = openpyxl.load_workbook(path)
     sheet = wb['Sheet1']
@@ -91,7 +94,7 @@ def get_selected_mentors(sheet, mentee_info_dict):
     mentor_mentee_dict_1st = dict()
     for row in sheet.rows:
         if row[2].value.lower() == "mentee":
-            email = row[1].value.strip()
+            email = row[1].value.strip().lower()
             # wills are index of each mentor
             first_will = int(row[4].value.split(" ")[0])
             second_will = int(row[5].value.split(" ")[0])
@@ -131,7 +134,7 @@ def get_mentee_info(sheet):
         if isinstance(row[0].value, int):
             index = int(row[0].value)
             name = row[1].value.strip()
-            email = row[2].value.strip()
+            email = row[2].value.strip().lower()
             # print(index,name,email)
             mentee_info_dict[email] = [name]
     print(mentee_info_dict)
@@ -139,14 +142,40 @@ def get_mentee_info(sheet):
 
 
 def get_mentor_info(sheet):
+    '''
+    read mentor index, name, email
+    :param sheet:
+    :return: mentor_info_dict: key: index, values: name and email
+    '''
     mentor_info_dict = dict()
     for row in sheet.rows:
         if isinstance(row[0].value, numbers.Rational):
             index = int(row[0].value)
             name = row[1].value.strip()
-            email = row[2].value.strip()
+            email = row[2].value.strip().lower()
             # print(index,name,email)
             mentor_info_dict[index] = name + " " + email
+    print(mentor_info_dict)
+    return mentor_info_dict
+
+
+def get_mentor_info_json(sheet):
+    '''
+    read mentor index, name, email
+    :param sheet:
+    :return: mentor_info_dict: key: email, values: name and email
+    '''
+    mentor_info_dict = dict()
+    for row in sheet.rows:
+        if isinstance(row[0].value, numbers.Rational):
+            index = int(row[0].value)
+            name = row[1].value.strip()
+            email = row[2].value.strip().lower()
+            # print(index,name,email)
+            if email not in mentee_info_dict.keys():
+                mentor_info_dict[email] = {'index': index, 'name': name}
+            else:
+                print("DUPLICATE EMAIL")
     print(mentor_info_dict)
     return mentor_info_dict
 
@@ -158,9 +187,9 @@ def change_email_info_name(sheet, mentee_info_dict, mentor_info_dict):
                 if col.value in mentee_info_dict.keys():
                     for info in mentee_info_dict[col.value][0:1]:
                         print("Mentee: {:30}".format(str(info)), end="")
-                    print("{:30}".format(col.value + ","), end="\n")
+                    print("{:30}".format(col.value + ","), end="")
             else:
-                print("Mentor: {:50}".format(mentor_info_dict[col.value]), end=" \n")
+                print("Mentor: {:50}".format(mentor_info_dict[col.value]), end=" ")
         print()
 
 
