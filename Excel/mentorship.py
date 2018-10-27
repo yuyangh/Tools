@@ -213,4 +213,34 @@ def change_email_info_name(sheet, mentee_info_dict, mentor_info_dict):
 
 
 if __name__ == "__main__":
-    pass
+    mentor_mentee_index_sheet_path = "/Users/yuyang/Downloads/Mentor & Mentee序号.xlsx"
+    sheet_info = read_07_Excel_sheet(mentor_mentee_index_sheet_path, "Mentee")
+    # print_entire_sheet(sheet_info)
+    mentee_info_dict = get_mentee_info(sheet_info)
+
+    print()
+    path = "/Users/yuyang/Downloads/Mentee选择Mentor意向和感谢信 - for all (Responses).xlsx"
+    sheet = read_07_Excel_sheet(path, "Form Responses 1")
+    mentor_mentee_dict_1st = get_selected_mentors(sheet, mentee_info_dict)
+    print("1st round total chosen mentor numbers:", len(mentor_mentee_dict_1st))
+    print("mentor_mentee_dict_1st", len(mentor_mentee_dict_1st), mentor_mentee_dict_1st)
+
+    sheet_info = read_07_Excel_sheet(mentor_mentee_index_sheet_path, "Mentor")
+    get_mentor_info_json(sheet_info)
+    mentor_info_dict = get_mentor_info(sheet_info)
+
+    print()
+    sheet = read_07_Excel_sheet(path, "Statistics 1st round")
+    print("Statistics 1st round")
+    change_email_info_name(sheet, mentee_info_dict, mentor_info_dict)
+
+    print()
+    sheet = read_07_Excel_sheet(path, "Statistics 2nd round")
+    print("Statistics 2nd round")
+    change_email_info_name(sheet, mentee_info_dict, mentor_info_dict)
+
+    print()
+    # two round overall statistics
+    # sheet = read_07_Excel_sheet(path, "Statistics all")
+    # print("Statistics all")
+    # change_email_info_name(sheet, mentee_info_dict, mentor_info_dict)
