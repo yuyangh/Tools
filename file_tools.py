@@ -120,7 +120,7 @@ def merge_files(meragefiledir=None):
 
 
 def get_file_addresses_in_dir(file_dir):
-    file_address_in_file_dir=list()
+    file_address_in_file_dir = list()
     for root, dirs, file_list in os.walk(file_dir):
         # print("current path:",end="")
         print(root)  # 当前目录路径
@@ -129,11 +129,16 @@ def get_file_addresses_in_dir(file_dir):
         # print(file_list)  # 当前路径下所有非目录子文件, in list format
         for file_name in file_list:
             # print(root+"/"+file_name)
-            file_address_in_file_dir.append(root+"/"+file_name)
+            file_address_in_file_dir.append(root + "/" + file_name)
     return file_address_in_file_dir
 
 
+def write_list_to_file(file_address, list):
+    with open(file_address, "w")as file:
+        for line in list:
+            file.write(line+"\n")
 
 
 if __name__ == "__main__":
     get_file_addresses_in_dir(os.getcwd())
+    write_list_to_file("/Users/yuyang/PycharmProjects/Tools/test.txt",["aefbn","abe"])
