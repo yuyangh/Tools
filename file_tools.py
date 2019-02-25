@@ -11,6 +11,7 @@
 # ==============================================================================
 import os
 import random
+import json
 import shutil
 from sys import argv
 import requests
@@ -118,7 +119,21 @@ def merge_files(meragefiledir=None):
     file.close()
 
 
-if __name__ == "__main__":
+def get_file_addresses_in_dir(file_dir):
+    file_address_in_file_dir=list()
+    for root, dirs, file_list in os.walk(file_dir):
+        # print("current path:",end="")
+        print(root)  # 当前目录路径
+        # print("current path's dir:",end="")
+        # print(dirs)  # 当前路径下所有子目录, in list format
+        # print(file_list)  # 当前路径下所有非目录子文件, in list format
+        for file_name in file_list:
+            # print(root+"/"+file_name)
+            file_address_in_file_dir.append(root+"/"+file_name)
+    return file_address_in_file_dir
 
-    for file in os.listdir("/Users/yuyang/Downloads"):
-        print(file)
+
+
+
+if __name__ == "__main__":
+    get_file_addresses_in_dir(os.getcwd())
