@@ -213,13 +213,13 @@ def change_email_info_name(sheet, mentee_info_dict, mentor_info_dict):
 
 
 if __name__ == "__main__":
-    mentor_mentee_index_sheet_path = "/Users/yuyang/Downloads/Mentor & Mentee序号.xlsx"
+    mentor_mentee_index_sheet_path = "/Users/yuyang/OneDrive/Mentor & Mentee序号.xlsx"
     sheet_info = read_07_Excel_sheet(mentor_mentee_index_sheet_path, "Mentee")
     # print_entire_sheet(sheet_info)
     mentee_info_dict = get_mentee_info(sheet_info)
 
     print()
-    path = "/Users/yuyang/Downloads/Mentee选择Mentor意向和感谢信 - for all (Responses).xlsx"
+    path = "/Users/yuyang/OneDrive/Mentee选择Mentor意向和感谢信 - for all (Responses).xlsx"
     sheet = read_07_Excel_sheet(path, "Form Responses 1")
     mentor_mentee_dict_1st = get_selected_mentors(sheet, mentee_info_dict)
     print("1st round total chosen mentor numbers:", len(mentor_mentee_dict_1st))
