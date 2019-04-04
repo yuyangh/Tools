@@ -136,9 +136,60 @@ def get_file_addresses_in_dir(file_dir):
 def write_list_to_file(file_address, list):
     with open(file_address, "w")as file:
         for line in list:
-            file.write(line+"\n")
+            file.write(line + "\n")
+
+
+def copy_rename_files(source_folder, postfix=""):
+    """
+    copy file and rename
+    将某个目录下的文件修改文件名后复制到相同的文件夹
+    """
+
+    file_list = os.listdir(source_folder)
+    for file_obj in file_list:
+        file_path = os.path.join(source_folder, file_obj)
+
+        file_name, file_extend = os.path.splitext(file_obj)
+        new_name = file_name + postfix + file_extend
+
+        newfile_path = os.path.join(source_folder, new_name)
+
+        shutil.copyfile(file_path, newfile_path)
+
+
+def copy_rename_file(file_path, postfix=""):
+    """
+    copy and rename single file
+    :param file_path:
+    :param postfix:
+    :return: none
+    """
+
+    folder_address = os.path.dirname(file_path)
+    file_name, file_extend = os.path.splitext(file_path)
+    new_name = file_name + postfix + file_extend
+
+    newfile_path = os.path.join(folder_address, new_name)
+
+    shutil.copyfile(file_path, newfile_path)
+
+
+def get_file_new_name(file_path, postfix=""):
+    """
+    copy and rename single file
+    :param file_path:
+    :param postfix:
+    :return: new file name
+    """
+
+    folder_address = os.path.dirname(file_path)
+    file_name, file_extend = os.path.splitext(file_path)
+    new_name = file_name + postfix + file_extend
+
+    newfile_path = os.path.join(folder_address, new_name)
+    return newfile_path
 
 
 if __name__ == "__main__":
     get_file_addresses_in_dir(os.getcwd())
-    write_list_to_file("/Users/yuyang/PycharmProjects/Tools/test.txt",["aefbn","abe"])
+    write_list_to_file("/Users/yuyang/PycharmProjects/Tools/test.txt", ["aefbn", "abe"])
