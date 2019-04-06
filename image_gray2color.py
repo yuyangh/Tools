@@ -34,7 +34,6 @@ def get_file_new_name(file_path, postfix=""):
     :param postfix:
     :return: new file name
     """
-
     folder_address = os.path.dirname(file_path)
     file_name, file_extend = os.path.splitext(file_path)
     new_name = file_name + postfix + file_extend
@@ -42,9 +41,21 @@ def get_file_new_name(file_path, postfix=""):
     return newfile_path
 
 
+def get_file_addresses_in_dir(file_dir):
+    file_address_in_file_dir = list()
+    for root, dirs, file_list in os.walk(file_dir):
+        # print("current path:",end="")
+        print(root)  # current path
+        for file_name in file_list:
+            # print(root + "/" + file_name)
+            file_address_in_file_dir.append(root + "/" + file_name)
+    return file_address_in_file_dir
+
+
 def process_image(source_folder, destination_folder):
-    file_list = os.listdir(source_folder)
+    file_list = get_file_addresses_in_dir(source_folder)
     for file_obj in file_list:
+        # print(file_obj)
         gray2color_image(file_obj, destination_folder, True)
 
 
@@ -56,8 +67,8 @@ def test():
 
 def main():
     # test()
-    source_folder = ""
-    destination_folder = ""
+    source_folder = "/Volumes/Temp/FLIR_ADAS/training/PreviewData"
+    destination_folder = "/Users/yuyang/Desktop/JPEGImages"
     process_image(source_folder, destination_folder)
 
 
