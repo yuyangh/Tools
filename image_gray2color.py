@@ -41,20 +41,25 @@ def get_file_new_name(file_path, postfix=""):
     newfile_path = os.path.join(folder_address, new_name)
     return newfile_path
 
+
 def process_image(source_folder, destination_folder):
     file_list = os.listdir(source_folder)
     for file_obj in file_list:
         gray2color_image(file_obj, destination_folder, True)
 
+
 def test():
     image_address = "/Users/yuyang/OneDrive/USC/Research/FLIR_08863.jpeg"
     image_address1 = ""
-    # gray2color_image(image_address,"/Users/yuyang/Desktop/",True)
+    gray2color_image(image_address, "/Users/yuyang/Desktop/", True)
+
 
 def main():
-    source_folder=""
-    destination_folder=""
-    process_image(source_folder,destination_folder)
+    # test()
+    source_folder = ""
+    destination_folder = ""
+    process_image(source_folder, destination_folder)
+
 
 if __name__ == "__main__":
     main()
