@@ -1,6 +1,7 @@
 # python3 -m pip install --upgrade exifread
 # python3 -m pip install --upgrade Pillow
 # python3 -m pip install --upgrade tqdm
+import sys
 
 from PIL import Image
 from PIL.ExifTags import TAGS
@@ -82,14 +83,21 @@ def get_absolute_file_paths(directory):
     return file_paths
 
 
+def print_map_as_table(data: dict):
+    table = "\n".join([f"{item}: {count}" for item, count in data.items()])
+
+    # Print the table
+    print(table)
+
+
 def main():
-    # Example usage:
-    root_dir = '/Volumes/Shared Folder/Photography/2024'
-    root_dir = '/Users/yuyangh/Library/CloudStorage/OneDrive-Personal/图片'
-    root_dir = '/Volumes/Yuyang/Photography temp/'
-    root_dir = '/Volumes/Shared Folder/Photography/2023/2023.12.03-14 悉尼'
-    root_dir = '/Volumes/Shared Folder/Photography/2023'
-    root_dir = '/Users/yuyang/Pictures/Background Pictures'
+    arguments = sys.argv[1:]
+    if len(arguments) < 1:
+        logging.warning("command line argument is empty, please enter the root directory")
+        return
+    root_dir = arguments[1]
+
+    print("starting statistics for directory: ", root_dir)
     all_files = get_absolute_file_paths(root_dir)
 
     for file_path in tqdm(all_files, desc="Processing", unit="item"):
@@ -99,7 +107,6 @@ def main():
             get_image_lens_information(file_path)
         except:
             print()
-
 
     with open("image_exif_result.txt", "a") as f:
         print("Summary for path: ", root_dir, file=f)
