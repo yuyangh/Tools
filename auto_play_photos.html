@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!--
+  ====================================================================
+  📸 本地自动播放壁纸浏览器 (Local Auto-Play Photo Gallery)
+  ====================================================================
+  这个单文件网页应用旨在为摄影师和壁纸爱好者提供一个沉浸式的本地照片轮播展示工具。
+  非常适合用来回顾和展示您的高质量摄影作品（例如用 70-200 GM2、35-150 或 50 1.4 拍摄的大片）。
+
+  ✨ 核心功能：
+  1. 纯本地运行：直接读取本地文件夹中的照片，不上传任何数据，绝对保护隐私。
+  2. 智能横竖屏适配：自动识别当前显示器是横屏还是竖屏，并智能筛选图库中对应比例的照片进行播放。
+  3. 内存优化：图片切换后自动释放内存 (URL.revokeObjectURL)，支持超长时间播放几十兆的高像素原图而不卡顿。
+  4. 屏幕常亮 (Wake Lock)：播放时自动阻止设备进入休眠状态。
+  5. 丰富交互：支持自定义播放间隔、完整显示(Contain)或无缝填充(Cover)、随时暂停/播放、快捷全屏。
+  6. 历史记录缓存：自动记忆最近播放的 10 个文件夹，下次打开一键恢复，免去重复选文件的烦恼。
+
+  💡 使用方法：
+  直接在现代浏览器（Chrome/Edge/Safari等）中双击打开此 HTML 文件，点击“选择照片文件夹”即可开始沉浸式浏览。
+  ====================================================================
+-->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photos Gallery</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+        
+        /* === 启动与设置层 === */
+        #setup-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: #111; color: #fff; z-index: 200; transition: opacity 0.5s;
+        }
+        
+        .settings-box {
+            margin-top: 25px; display: flex; align-items: center; gap: 15px;
+            background: #222; padding: 15px 30px; border-radius: 12px; border: 1px solid #333;
+        }
+
+        /* 通用 Select 样式 */
+        select {
+            padding: 6px 10px; border-radius: 6px; background: #333; color: white;
+            border: 1px solid #555; font-size: 14px; outline: none; cursor: pointer;
+        }
+
+        .file-upload {
+            border: 2px dashed #555; padding: 50px 80px; text-align: center; border-radius: 16px; 
+            cursor: pointer; transition: all 0.3s; background: #1a1a1a;
+        }
+        .file-upload:hover { border-color: #4285f4; background: #222; transform: scale(1.02); }
+        input[type="file"] { display: none; }
+
+        /* 历史记录专属样式 */
+        #resume-area {
+            display: none; border: 2px solid #34a853; padding: 35px 50px; 
+            text-align: center; border-radius: 16px; background: #1a1a1a;
+        }
+        #resume-btn {
+            padding: 10px 24px; font-size: 16px; border-radius: 8px; font-weight: bold;
+            background: #34a853; color: white; border: none; cursor: pointer; transition: background 0.2s;
+        }
+        #resume-btn:hover { background: #2b8a44; }
+        
+        /* === 顶部状态栏 (播放时) === */
+        #status-bar {
+            position: absolute; top: 0; left: 0; width: 100%; z-index: 100;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+            color: #ddd; font-size: 14px; padding: 15px 20px 40px 20px;
+            opacity: 0; transition: opacity 0.5s; 
+            display: flex; justify-content: space-between; align-items: center;
+            box-sizing: border-box;
+        }
+        
+        /* 状态栏内的控件样式微调 */
+        #status-bar select, #status-bar button {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); 
+            color: #fff; font-size: 13px; margin-left: 10px;
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: background 0.2s;
+        }
+        
+        #status-bar button:hover, #status-bar select:hover {
+            background: rgba(255,255,255,0.25);
+        }
+        
+        /* === 舞台 === */
+        #stage { width: 100%; height: 100%; position: relative; }
+        
+        /* 图片容器 wrapper (黑底遮罩，防止透视) */
+        .slide-wrapper {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; 
+            opacity: 0; 
+            transition: opacity 1.5s ease-in-out; 
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1; 
+        }
+        
+        /* 图片本身 */
+        .slide-img {
+            width: 100%; height: 100%;
+            object-fit: contain; /* 默认完整显示 */
+            image-rendering: -webkit-optimize-contrast;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            transition: object-fit 0.5s ease;
+        }
+
+        /* 激活状态 */
+        .slide-wrapper.active { opacity: 1; z-index: 2; }
+        
+        #loading-text { margin-top: 20px; color: #888; font-size: 14px; font-family: monospace; }
+        .hint { position: absolute; bottom: 20px; color: #555; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <!-- === 启动界面 === -->
+    <div id="setup-layer">
+        <!-- 步骤1：选文件夹或恢复历史 -->
+        <div id="upload-container" style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; align-items: center;">
+            <div class="file-upload" id="upload-area">
+                <span style="font-size: 28px; font-weight: 600;">📂 选择新文件夹</span>
+                <br><br>
+                <span style="color:#888">Local Gallery</span>
+            </div>
+            
+            <!-- 历史记录面板，默认隐藏 -->
+            <div id="resume-area">
+                <span style="font-size: 24px; font-weight: 600; color: #34a853;">🔄 播放历史</span>
+                <br><br>
+                <select id="history-select" style="max-width: 300px; width: 100%; margin-bottom: 20px; font-size: 15px; padding: 10px;">
+                    <!-- 选项由 JS 动态生成 -->
+                </select>
+                <br>
+                <button id="resume-btn">▶️ 读取并播放</button>
+            </div>
+        </div>
+        <!-- 兼容旧浏览器的隐藏 input -->
+        <input type="file" id="folderInput" webkitdirectory multiple style="display: none;">
+
+        <!-- 步骤2：初始设置 -->
+        <div class="settings-box" id="settings-area">
+            <label>⏱️ 初始间隔：</label>
+            <select id="intervalSelect">
+                <option value="3000">3 秒</option>
+                <option value="5000">5 秒</option>
+                <option value="10000">10 秒</option>
+                <option value="15000" selected>15 秒</option>
+                <option value="30000">30 秒</option>
+                <option value="60000">60 秒</option>
+            </select>
+        </div>
+
+        <div id="loading-text"></div>
+    </div>
+
+    <!-- === 顶部状态栏 === -->
+    <div id="status-bar">
+        <div id="status-text-container">
+            <span id="status-mode">Waiting...</span>
+        </div>
+        
+        <!-- 状态栏上的实时设置与控制 -->
+        <div id="status-controls" style="pointer-events: auto; display: flex; align-items: center;">
+            <select id="timeSelect">
+                <option value="all" selected>所有时间</option>
+                <option value="week">最近一周</option>
+                <option value="month">最近一月</option>
+                <option value="3months">最近三个月</option>
+                <option value="year">最近一年</option>
+            </select>
+
+            <select id="orientationSelect">
+                <option value="auto" selected>自适应 (Auto)</option>
+                <option value="landscape">仅横屏</option>
+                <option value="portrait">仅竖屏</option>
+                <option value="all">所有照片</option>
+            </select>
+
+            <select id="fitSelect">
+                <option value="contain" selected>适应完整 (Contain)</option>
+                <option value="cover">填充全屏 (Cover)</option>
+            </select>
+
+            <select id="liveIntervalSelect">
+                <option value="3000">3s</option>
+                <option value="5000">5s</option>
+                <option value="10000">10s</option>
+                <option value="15000">15s</option>
+                <option value="30000">30s</option>
+                <option value="60000">60s</option>
+            </select>
+            
+            <button id="play-pause-btn">⏸️ 暂停</button>
+            <button id="next-btn">⏭️ 下一张</button>
+            <button id="fs-toggle">⛶ 全屏</button>
+        </div>
+    </div>
+
+    <!-- === 舞台 === -->
+    <div id="stage"></div>
+
+    <script>
+        const SUPPORTED_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'avif']; 
+        let slideInterval = 15000;
+        let fitMode = 'contain';
+        let orientationMode = 'auto';
+        let timeFilterMode = 'all'; 
+        
+        let landscapePhotos = [];
+        let portraitPhotos = [];
+        let currentQueue = [];
+        let isPlaying = false;
+        let wakeLock = null;
+        let timer = null; 
+
+        const input = document.getElementById('folderInput');
+        const setupLayer = document.getElementById('setup-layer');
+        const loadingText = document.getElementById('loading-text');
+        const uploadArea = document.getElementById('upload-area');
+        const resumeArea = document.getElementById('resume-area');
+        const uploadContainer = document.getElementById('upload-container');
+        const settingsArea = document.getElementById('settings-area');
+        
+        const statusBar = document.getElementById('status-bar');
+        const statusModeText = document.getElementById('status-mode');
+        const liveIntervalSelect = document.getElementById('liveIntervalSelect');
+        const fsToggleBtn = document.getElementById('fs-toggle');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const fitSelect = document.getElementById('fitSelect');
+        const orientationSelect = document.getElementById('orientationSelect');
+        const timeSelect = document.getElementById('timeSelect');
+        const stage = document.getElementById('stage');
+        const intervalSelect = document.getElementById('intervalSelect');
+
+        // --- 升级：IndexedDB 存储最多10个目录句柄 ---
+        const DB_NAME = 'PhotoGalleryDB';
+        const STORE_NAME = 'recent_dirs_v2'; // 使用新表名避免旧数据冲突
+        const DB_VERSION = 2;
+        const MAX_HISTORY = 10;
+
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'name' }); // 以文件夹名称作为主键
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function saveDirectoryHandle(handle) {
+            const db = await initDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                
+                // 添加或更新当前句柄的时间戳
+                store.put({ name: handle.name, handle: handle, timestamp: Date.now() });
+                
+                // 检查总数，超出 10 个则删除最旧的记录
+                const getAllReq = store.getAll();
+                getAllReq.onsuccess = () => {
+                    let records = getAllReq.result;
+                    if (records.length > MAX_HISTORY) {
+                        records.sort((a, b) => b.timestamp - a.timestamp); // 降序：最新的在前
+                        const toDelete = records.slice(MAX_HISTORY); // 截取前10个之后的全部删除
+                        toDelete.forEach(record => {
+                            store.delete(record.name);
+                        });
+                    }
+                };
+                
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function getRecentDirectoryHandles() {
+            const db = await initDB();
+            return new Promise((resolve) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    let records = req.result;
+                    // 按最后访问时间降序排序
+                    records.sort((a, b) => b.timestamp - a.timestamp);
+                    resolve(records);
+                };
+                req.onerror = () => resolve([]);
+            });
+        }
+
+        async function getFilesFromHandle(dirHandle) {
+            const files = [];
+            loadingText.innerText = `正在扫描文件夹: ${dirHandle.name}，这可能需要几秒钟...`;
+            async function scan(handle) {
+                for await (const entry of handle.values()) {
+                    if (entry.kind === 'file') {
+                        files.push(await entry.getFile());
+                    } else if (entry.kind === 'directory') {
+                        await scan(entry); 
+                    }
+                }
+            }
+            await scan(dirHandle);
+            return files;
+        }
+
+        let recentRecords = [];
+
+        // 页面加载时检查历史记录（支持多条记录）
+        window.addEventListener('DOMContentLoaded', async () => {
+            if ('showDirectoryPicker' in window) {
+                recentRecords = await getRecentDirectoryHandles();
+                if (recentRecords && recentRecords.length > 0) {
+                    resumeArea.style.display = 'block';
+                    const historySelect = document.getElementById('history-select');
+                    historySelect.innerHTML = ''; // 清空下拉框
+                    
+                    recentRecords.forEach((record, index) => {
+                        const opt = document.createElement('option');
+                        opt.value = index; 
+                        
+                        // 格式化时间为友好展示，例如: "2025-12-13 15:30"
+                        const d = new Date(record.timestamp);
+                        const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+                        
+                        opt.text = `📁 ${record.name} (最后访问: ${dateStr})`;
+                        historySelect.appendChild(opt);
+                    });
+                }
+            }
+        });
+
+        // 统一的文件处理入口
+        async function processSelectedFiles(files) {
+            if (files.length === 0) return;
+
+            slideInterval = parseInt(intervalSelect.value);
+            liveIntervalSelect.value = slideInterval;
+            
+            uploadContainer.style.display = 'none';
+            settingsArea.style.display = 'none';
+            
+            const imageFiles = files.filter(f => {
+                const ext = f.name.split('.').pop().toLowerCase();
+                return SUPPORTED_EXTS.includes(ext) && !f.name.startsWith('.');
+            });
+
+            if (imageFiles.length === 0) {
+                alert("未找到支持的图片格式。");
+                location.reload(); 
+                return;
+            }
+
+            loadingText.innerText = `正在读取 ${imageFiles.length} 张图片的元数据...`;
+            await analyzeImages(imageFiles);
+        }
+
+        // 1. 文件选择与恢复逻辑
+        // 点击"选择新文件夹"
+        uploadArea.onclick = async () => {
+            if ('showDirectoryPicker' in window) {
+                try {
+                    const dirHandle = await window.showDirectoryPicker();
+                    await saveDirectoryHandle(dirHandle); // 缓存句柄到数据库 (自动维护10条记录)
+                    const files = await getFilesFromHandle(dirHandle);
+                    await processSelectedFiles(files);
+                } catch (err) {
+                    console.log("用户取消了选择或不支持API", err);
+                }
+            } else {
+                input.click(); // 降级方案
+            }
+        };
+
+        // 点击"读取并播放" (多条记录)
+        document.getElementById('resume-btn').onclick = async () => {
+            const historySelect = document.getElementById('history-select');
+            const selectedIndex = historySelect.value;
+            
+            if (selectedIndex === "" || !recentRecords[selectedIndex]) return;
+            
+            const record = recentRecords[selectedIndex];
+            const savedHandle = record.handle;
+            
+            try {
+                if ((await savedHandle.queryPermission({mode: 'read'})) !== 'granted') {
+                    const permission = await savedHandle.requestPermission({mode: 'read'});
+                    if (permission !== 'granted') {
+                        alert("未获得读取权限，请重新选择文件夹。");
+                        return;
+                    }
+                }
+                
+                // 成功读取后，刷新该文件夹的时间戳，使其下次排序时排在最前面
+                await saveDirectoryHandle(savedHandle);
+                
+                const files = await getFilesFromHandle(savedHandle);
+                await processSelectedFiles(files);
+            } catch (err) {
+                alert("无法读取该历史文件夹，可能已被移动或删除。请选择其他记录或新文件夹。");
+                console.error(err);
+            }
+        };
+
+        // 降级方案的文件选择
+        input.onchange = async (e) => {
+            const files = Array.from(e.target.files);
+            await processSelectedFiles(files);
+        };
+
+        // 2. 预分析逻辑
+        async function analyzeImages(files) {
+            let processed = 0;
+            const batchSize = 20; 
+
+            for (let i = 0; i < files.length; i += batchSize) {
+                const batch = files.slice(i, i + batchSize);
+                const promises = batch.map(file => {
+                    return new Promise(resolve => {
+                        const img = new Image();
+                        const url = URL.createObjectURL(file);
+                        img.src = url;
+                        img.onload = () => {
+                            if (img.naturalWidth >= img.naturalHeight) landscapePhotos.push(file);
+                            else portraitPhotos.push(file);
+                            URL.revokeObjectURL(url);
+                            resolve();
+                        };
+                        img.onerror = () => resolve();
+                    });
+                });
+                await Promise.all(promises);
+                processed += batch.length;
+                if (processed % 50 === 0 || processed >= files.length) {
+                    loadingText.innerText = `正在解析... ${Math.min(processed, files.length)} / ${files.length}`;
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            // 分析完成，直接开始播放
+            startPlayback();
+        }
+
+        // 3. 开始播放 (自动调用)
+        async function startPlayback() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) { console.log("Wake Lock not supported or denied"); }
+
+            setupLayer.style.opacity = 0;
+            setTimeout(() => setupLayer.style.display = 'none', 500);
+            
+            isPlaying = true;
+            updatePhotoQueue();
+            nextSlide();
+            
+            startTimer();
+        }
+
+        // 4. 定时器及控制逻辑
+        function startTimer() {
+            if (timer) clearInterval(timer);
+            if (isPlaying) {
+                timer = setInterval(nextSlide, slideInterval);
+            }
+        }
+
+        liveIntervalSelect.onchange = (e) => {
+            slideInterval = parseInt(e.target.value);
+            startTimer();
+        };
+
+        fitSelect.onchange = (e) => {
+            fitMode = e.target.value;
+            document.querySelectorAll('.slide-img').forEach(img => {
+                img.style.objectFit = fitMode;
+            });
+        };
+
+        orientationSelect.onchange = (e) => {
+            orientationMode = e.target.value;
+            updatePhotoQueue();
+            nextSlide(); 
+            if (isPlaying) startTimer(); 
+        };
+
+        timeSelect.onchange = (e) => {
+            timeFilterMode = e.target.value;
+            updatePhotoQueue();
+            nextSlide(); 
+            if (isPlaying) startTimer(); 
+        };
+
+        playPauseBtn.onclick = () => {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                playPauseBtn.innerText = "⏸️ 暂停";
+                startTimer();
+            } else {
+                playPauseBtn.innerText = "▶️ 播放";
+                if (timer) clearInterval(timer);
+            }
+        };
+
+        nextBtn.onclick = () => {
+            nextSlide();
+            if (isPlaying) startTimer(); 
+        };
+
+        fsToggleBtn.onclick = () => {
+            toggleFullscreen();
+        };
+
+        document.ondblclick = () => {
+            toggleFullscreen();
+        };
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(()=>{});
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    document.documentElement.webkitRequestFullscreen();
+                }
+                fsToggleBtn.innerText = "⛶ 退出";
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().catch(()=>{});
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+                fsToggleBtn.innerText = "⛶ 全屏";
+            }
+        }
+        
+        document.addEventListener('fullscreenchange', () => {
+             if (document.fullscreenElement) {
+                fsToggleBtn.innerText = "⛶ 退出";
+            } else {
+                fsToggleBtn.innerText = "⛶ 全屏";
+            }
+        });
+
+        // 5. 播放逻辑与状态更新
+        function updatePhotoQueue() {
+            const isLandscapeScreen = window.innerWidth >= window.innerHeight;
+            let baseQueue = [];
+            let orientationText = "";
+
+            if (orientationMode === 'auto') {
+                if (isLandscapeScreen) {
+                    baseQueue = landscapePhotos;
+                    orientationText = "🟢 自适应:横屏";
+                } else {
+                    baseQueue = portraitPhotos;
+                    orientationText = "🟣 自适应:竖屏";
+                }
+            } else if (orientationMode === 'landscape') {
+                baseQueue = landscapePhotos;
+                orientationText = "🟢 仅横屏";
+            } else if (orientationMode === 'portrait') {
+                baseQueue = portraitPhotos;
+                orientationText = "🟣 仅竖屏";
+            } else if (orientationMode === 'all') {
+                baseQueue = [...landscapePhotos, ...portraitPhotos];
+                orientationText = "🔵 所有方向";
+            }
+
+            let timeText = "所有时间";
+            let cutoffTime = 0;
+            
+            if (timeFilterMode !== 'all') {
+                const d = new Date();
+                if (timeFilterMode === 'week') { d.setDate(d.getDate() - 7); timeText = "最近一周"; }
+                else if (timeFilterMode === 'month') { d.setMonth(d.getMonth() - 1); timeText = "最近一月"; }
+                else if (timeFilterMode === '3months') { d.setMonth(d.getMonth() - 3); timeText = "最近三月"; }
+                else if (timeFilterMode === 'year') { d.setFullYear(d.getFullYear() - 1); timeText = "最近一年"; }
+                cutoffTime = d.getTime();
+            }
+
+            if (cutoffTime > 0) {
+                currentQueue = baseQueue.filter(file => file.lastModified >= cutoffTime);
+            } else {
+                currentQueue = baseQueue;
+            }
+
+            let modeText = `${orientationText} | ${timeText} | 图库: ${currentQueue.length} 张`;
+
+            if (currentQueue.length === 0) {
+                currentQueue = [...landscapePhotos, ...portraitPhotos];
+                modeText += " (无符合条件照片，已降级为混合播放)";
+            }
+            
+            statusModeText.innerText = modeText;
+        }
+        
+        window.addEventListener('resize', () => {
+            if (orientationMode === 'auto') updatePhotoQueue();
+        });
+
+        // 6. 核心渲染逻辑 (Black Wrapper)
+        function nextSlide() {
+            if (currentQueue.length === 0) return;
+            const file = currentQueue[Math.floor(Math.random() * currentQueue.length)];
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'slide-wrapper';
+            
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.className = 'slide-img';
+            img.style.objectFit = fitMode; 
+            
+            img.onload = () => {
+                wrapper.appendChild(img);
+                stage.appendChild(wrapper);
+                
+                requestAnimationFrame(() => wrapper.classList.add('active'));
+
+                const oldWrappers = document.querySelectorAll('.slide-wrapper');
+                if (oldWrappers.length > 2) {
+                    const toRemove = oldWrappers[0];
+                    toRemove.classList.remove('active'); 
+                    setTimeout(() => {
+                        if (toRemove.parentNode) {
+                            stage.removeChild(toRemove);
+                            const imgInside = toRemove.querySelector('img');
+                            if (imgInside) URL.revokeObjectURL(imgInside.src);
+                        }
+                    }, 1500); 
+                }
+            };
+        }
+
+        // 鼠标交互：状态栏显隐
+        let idleTimer;
+        document.onmousemove = () => {
+            statusBar.style.opacity = 1;
+            document.body.style.cursor = 'default';
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                statusBar.style.opacity = 0;
+                document.body.style.cursor = 'none';
+            }, 2500);
+        };
+    </script>
+</body>
+</html>
