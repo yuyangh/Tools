@@ -13,6 +13,7 @@
   4. 屏幕常亮 (Wake Lock)：播放时自动阻止设备进入休眠状态。
   5. 丰富交互：支持自定义播放间隔、完整显示(Contain)或无缝填充(Cover)、随时暂停/播放、快捷全屏。
   6. 历史记录缓存：自动记忆最近播放的 10 个文件夹，下次打开展现为快捷列表，一键点击恢复。
+  7. 一键复制路径：通过顶部状态栏的专属按钮，可一键复制当前照片所在的本地相对路径，方便回溯源文件。
 
   💡 使用方法：
   直接在现代浏览器（Chrome/Edge/Safari等）中双击打开此 HTML 文件，点击“选择照片文件夹”或历史记录即可开始沉浸式浏览。
@@ -99,6 +100,14 @@
             background: rgba(255,255,255,0.25);
         }
         
+        /* 复制路径按钮特殊颜色 */
+        #copy-path-btn {
+            border-color: #34a853 !important; color: #34a853 !important;
+        }
+        #copy-path-btn:hover {
+            background: rgba(52, 168, 83, 0.2) !important;
+        }
+        
         /* === 舞台 === */
         #stage { width: 100%; height: 100%; position: relative; }
         
@@ -126,6 +135,17 @@
         
         #loading-text { margin-top: 20px; color: #888; font-size: 14px; font-family: monospace; }
         .hint { position: absolute; bottom: 20px; color: #555; font-size: 12px; }
+
+        /* Toast 提示框 */
+        #toast {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.9); color: #fff; padding: 12px 24px;
+            border-radius: 8px; font-size: 14px; z-index: 9999;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+            border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px); display: flex; align-items: center; gap: 8px;
+        }
+        #toast.show { opacity: 1; }
     </style>
 </head>
 <body>
@@ -204,6 +224,7 @@
                 <option value="60000">60s</option>
             </select>
             
+            <button id="copy-path-btn">📋 复制路径</button>
             <button id="play-pause-btn">⏸️ 暂停</button>
             <button id="next-btn">⏭️ 下一张</button>
             <button id="fs-toggle">⛶ 全屏</button>
@@ -212,6 +233,9 @@
 
     <!-- === 舞台 === -->
     <div id="stage"></div>
+
+    <!-- === Toast 提示 === -->
+    <div id="toast"></div>
 
     <script>
         const SUPPORTED_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'avif']; 
@@ -226,6 +250,7 @@
         let isPlaying = false;
         let wakeLock = null;
         let timer = null; 
+        let currentPlayingFile = null; // 新增：当前正在播放的文件引用
 
         const input = document.getElementById('folderInput');
         const setupLayer = document.getElementById('setup-layer');
@@ -241,11 +266,13 @@
         const fsToggleBtn = document.getElementById('fs-toggle');
         const playPauseBtn = document.getElementById('play-pause-btn');
         const nextBtn = document.getElementById('next-btn');
+        const copyPathBtn = document.getElementById('copy-path-btn'); // 新增复制按钮
         const fitSelect = document.getElementById('fitSelect');
         const orientationSelect = document.getElementById('orientationSelect');
         const timeSelect = document.getElementById('timeSelect');
         const stage = document.getElementById('stage');
         const intervalSelect = document.getElementById('intervalSelect');
+        const toast = document.getElementById('toast');
 
         // --- 升级：IndexedDB 存储最多10个目录句柄 ---
         const DB_NAME = 'PhotoGalleryDB';
@@ -273,16 +300,14 @@
                 const tx = db.transaction(STORE_NAME, 'readwrite');
                 const store = tx.objectStore(STORE_NAME);
                 
-                // 添加或更新当前句柄的时间戳
                 store.put({ name: handle.name, handle: handle, timestamp: Date.now() });
                 
-                // 检查总数，超出 10 个则删除最旧的记录
                 const getAllReq = store.getAll();
                 getAllReq.onsuccess = () => {
                     let records = getAllReq.result;
                     if (records.length > MAX_HISTORY) {
-                        records.sort((a, b) => b.timestamp - a.timestamp); // 降序：最新的在前
-                        const toDelete = records.slice(MAX_HISTORY); // 截取前10个之后的全部删除
+                        records.sort((a, b) => b.timestamp - a.timestamp); 
+                        const toDelete = records.slice(MAX_HISTORY); 
                         toDelete.forEach(record => {
                             store.delete(record.name);
                         });
@@ -302,7 +327,6 @@
                 const req = store.getAll();
                 req.onsuccess = () => {
                     let records = req.result;
-                    // 按最后访问时间降序排序
                     records.sort((a, b) => b.timestamp - a.timestamp);
                     resolve(records);
                 };
@@ -310,38 +334,40 @@
             });
         }
 
+        // 修改：在遍历文件夹时，手动记录相对路径
         async function getFilesFromHandle(dirHandle) {
             const files = [];
             loadingText.innerText = `正在扫描文件夹: ${dirHandle.name}，这可能需要几秒钟...`;
-            async function scan(handle) {
+            async function scan(handle, currentPath) {
                 for await (const entry of handle.values()) {
                     if (entry.kind === 'file') {
-                        files.push(await entry.getFile());
+                        const file = await entry.getFile();
+                        file.customRelativePath = currentPath + entry.name; // 附加相对路径
+                        files.push(file);
                     } else if (entry.kind === 'directory') {
-                        await scan(entry); 
+                        await scan(entry, currentPath + entry.name + '/'); 
                     }
                 }
             }
-            await scan(dirHandle);
+            // 根目录作为前缀传入
+            await scan(dirHandle, dirHandle.name + '/');
             return files;
         }
 
         let recentRecords = [];
 
-        // 页面加载时检查历史记录（生成滚动列表）
         window.addEventListener('DOMContentLoaded', async () => {
             if ('showDirectoryPicker' in window) {
                 recentRecords = await getRecentDirectoryHandles();
                 if (recentRecords && recentRecords.length > 0) {
                     resumeArea.style.display = 'block';
                     const historyList = document.getElementById('history-list');
-                    historyList.innerHTML = ''; // 清空列表
+                    historyList.innerHTML = ''; 
                     
                     recentRecords.forEach((record, index) => {
                         const item = document.createElement('div');
                         item.className = 'history-item';
                         
-                        // 格式化时间为友好展示，例如: "2026-03-22 15:30"
                         const d = new Date(record.timestamp);
                         const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
                         
@@ -350,16 +376,13 @@
                             <span class="visit-time">最后访问: ${dateStr}</span>
                         `;
                         
-                        // 绑定点击事件，直接播放
                         item.onclick = () => playFromHistory(index);
-                        
                         historyList.appendChild(item);
                     });
                 }
             }
         });
 
-        // 统一的文件处理入口
         async function processSelectedFiles(files) {
             if (files.length === 0) return;
 
@@ -384,7 +407,6 @@
             await analyzeImages(imageFiles);
         }
 
-        // --- 读取历史记录并播放的核心逻辑 ---
         async function playFromHistory(selectedIndex) {
             if (selectedIndex === undefined || !recentRecords[selectedIndex]) return;
             
@@ -400,9 +422,7 @@
                     }
                 }
                 
-                // 成功读取后，刷新该文件夹的时间戳，使其下次排序时排在最前面
                 await saveDirectoryHandle(savedHandle);
-                
                 const files = await getFilesFromHandle(savedHandle);
                 await processSelectedFiles(files);
             } catch (err) {
@@ -411,29 +431,26 @@
             }
         }
 
-        // 1. 文件选择新文件夹
         uploadArea.onclick = async () => {
             if ('showDirectoryPicker' in window) {
                 try {
                     const dirHandle = await window.showDirectoryPicker();
-                    await saveDirectoryHandle(dirHandle); // 缓存句柄到数据库 (自动维护10条记录)
+                    await saveDirectoryHandle(dirHandle); 
                     const files = await getFilesFromHandle(dirHandle);
                     await processSelectedFiles(files);
                 } catch (err) {
                     console.log("用户取消了选择或不支持API", err);
                 }
             } else {
-                input.click(); // 降级方案
+                input.click(); 
             }
         };
 
-        // 降级方案的文件选择
         input.onchange = async (e) => {
             const files = Array.from(e.target.files);
             await processSelectedFiles(files);
         };
 
-        // 2. 预分析逻辑
         async function analyzeImages(files) {
             let processed = 0;
             const batchSize = 20; 
@@ -461,12 +478,9 @@
                     await new Promise(r => setTimeout(r, 0));
                 }
             }
-
-            // 分析完成，直接开始播放
             startPlayback();
         }
 
-        // 3. 开始播放 (自动调用)
         async function startPlayback() {
             try {
                 if ('wakeLock' in navigator) {
@@ -484,7 +498,6 @@
             startTimer();
         }
 
-        // 4. 定时器及控制逻辑
         function startTimer() {
             if (timer) clearInterval(timer);
             if (isPlaying) {
@@ -534,13 +547,8 @@
             if (isPlaying) startTimer(); 
         };
 
-        fsToggleBtn.onclick = () => {
-            toggleFullscreen();
-        };
-
-        document.ondblclick = () => {
-            toggleFullscreen();
-        };
+        fsToggleBtn.onclick = () => { toggleFullscreen(); };
+        document.ondblclick = () => { toggleFullscreen(); };
 
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
@@ -568,7 +576,6 @@
             }
         });
 
-        // 5. 播放逻辑与状态更新
         function updatePhotoQueue() {
             const isLandscapeScreen = window.innerWidth >= window.innerHeight;
             let baseQueue = [];
@@ -625,10 +632,10 @@
             if (orientationMode === 'auto') updatePhotoQueue();
         });
 
-        // 6. 核心渲染逻辑 (Black Wrapper)
         function nextSlide() {
             if (currentQueue.length === 0) return;
             const file = currentQueue[Math.floor(Math.random() * currentQueue.length)];
+            currentPlayingFile = file; // 记录当前正在播放的文件
             
             const wrapper = document.createElement('div');
             wrapper.className = 'slide-wrapper';
@@ -657,6 +664,49 @@
                     }, 1500); 
                 }
             };
+        }
+
+        // --- Toast 提示功能 ---
+        let toastTimer;
+        function showToast(msg) {
+            toast.innerText = msg;
+            toast.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // --- 新增：专门的复制路径按钮逻辑，取代右键接管 ---
+        copyPathBtn.onclick = () => {
+            if (!isPlaying || !currentPlayingFile) return;
+
+            const pathToCopy = currentPlayingFile.customRelativePath || currentPlayingFile.webkitRelativePath || currentPlayingFile.name;
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(pathToCopy).then(() => {
+                    showToast(`📸 已复制图片路径: ${pathToCopy}`);
+                }).catch(() => fallbackCopyTextToClipboard(pathToCopy));
+            } else {
+                fallbackCopyTextToClipboard(pathToCopy);
+            }
+        };
+
+        // 兼容旧版剪贴板 API
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";  // 避免滚动到屏幕底端
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast(`📸 已复制图片路径: ${text}`);
+            } catch (err) {
+                showToast(`⚠️ 复制失败，请检查浏览器权限设置`);
+            }
+            document.body.removeChild(textArea);
         }
 
         // 鼠标交互：状态栏显隐
