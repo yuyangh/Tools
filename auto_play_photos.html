@@ -12,10 +12,10 @@
   3. 内存优化：图片切换后自动释放内存 (URL.revokeObjectURL)，支持超长时间播放几十兆的高像素原图而不卡顿。
   4. 屏幕常亮 (Wake Lock)：播放时自动阻止设备进入休眠状态。
   5. 丰富交互：支持自定义播放间隔、完整显示(Contain)或无缝填充(Cover)、随时暂停/播放、快捷全屏。
-  6. 历史记录缓存：自动记忆最近播放的 10 个文件夹，下次打开一键恢复，免去重复选文件的烦恼。
+  6. 历史记录缓存：自动记忆最近播放的 10 个文件夹，下次打开展现为快捷列表，一键点击恢复。
 
   💡 使用方法：
-  直接在现代浏览器（Chrome/Edge/Safari等）中双击打开此 HTML 文件，点击“选择照片文件夹”即可开始沉浸式浏览。
+  直接在现代浏览器（Chrome/Edge/Safari等）中双击打开此 HTML 文件，点击“选择照片文件夹”或历史记录即可开始沉浸式浏览。
   ====================================================================
 -->
 <html lang="zh-CN">
@@ -51,16 +51,32 @@
         .file-upload:hover { border-color: #4285f4; background: #222; transform: scale(1.02); }
         input[type="file"] { display: none; }
 
-        /* 历史记录专属样式 */
+        /* 历史记录专属样式 (已修改为列表) */
         #resume-area {
-            display: none; border: 2px solid #34a853; padding: 35px 50px; 
+            display: none; border: 2px solid #34a853; padding: 25px 30px; 
             text-align: center; border-radius: 16px; background: #1a1a1a;
+            max-width: 400px; width: 100%; box-sizing: border-box;
         }
-        #resume-btn {
-            padding: 10px 24px; font-size: 16px; border-radius: 8px; font-weight: bold;
-            background: #34a853; color: white; border: none; cursor: pointer; transition: background 0.2s;
+        #history-list {
+            max-height: 220px; overflow-y: auto; margin-top: 15px; 
+            display: flex; flex-direction: column; gap: 10px;
+            padding-right: 5px;
         }
-        #resume-btn:hover { background: #2b8a44; }
+        /* 滚动条美化 */
+        #history-list::-webkit-scrollbar { width: 6px; }
+        #history-list::-webkit-scrollbar-track { background: #111; border-radius: 3px; }
+        #history-list::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        #history-list::-webkit-scrollbar-thumb:hover { background: #777; }
+        
+        /* 列表项卡片样式 */
+        .history-item {
+            background: #2a2a2a; padding: 12px 15px; border-radius: 8px; 
+            cursor: pointer; text-align: left; transition: background 0.2s, border-color 0.2s;
+            display: flex; flex-direction: column; gap: 5px; border: 1px solid transparent;
+        }
+        .history-item:hover { background: #333; border-color: #34a853; }
+        .history-item .folder-name { font-weight: bold; font-size: 15px; color: #fff; }
+        .history-item .visit-time { font-size: 12px; color: #aaa; }
         
         /* === 顶部状态栏 (播放时) === */
         #status-bar {
@@ -126,13 +142,10 @@
             
             <!-- 历史记录面板，默认隐藏 -->
             <div id="resume-area">
-                <span style="font-size: 24px; font-weight: 600; color: #34a853;">🔄 播放历史</span>
-                <br><br>
-                <select id="history-select" style="max-width: 300px; width: 100%; margin-bottom: 20px; font-size: 15px; padding: 10px;">
-                    <!-- 选项由 JS 动态生成 -->
-                </select>
-                <br>
-                <button id="resume-btn">▶️ 读取并播放</button>
+                <span style="font-size: 24px; font-weight: 600; color: #34a853;">🔄 最近播放</span>
+                <div id="history-list">
+                    <!-- 列表项由 JS 动态生成 -->
+                </div>
             </div>
         </div>
         <!-- 兼容旧浏览器的隐藏 input -->
@@ -236,7 +249,7 @@
 
         // --- 升级：IndexedDB 存储最多10个目录句柄 ---
         const DB_NAME = 'PhotoGalleryDB';
-        const STORE_NAME = 'recent_dirs_v2'; // 使用新表名避免旧数据冲突
+        const STORE_NAME = 'recent_dirs_v2'; 
         const DB_VERSION = 2;
         const MAX_HISTORY = 10;
 
@@ -246,7 +259,7 @@
                 request.onupgradeneeded = (e) => {
                     const db = e.target.result;
                     if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        db.createObjectStore(STORE_NAME, { keyPath: 'name' }); // 以文件夹名称作为主键
+                        db.createObjectStore(STORE_NAME, { keyPath: 'name' }); 
                     }
                 };
                 request.onsuccess = () => resolve(request.result);
@@ -315,25 +328,32 @@
 
         let recentRecords = [];
 
-        // 页面加载时检查历史记录（支持多条记录）
+        // 页面加载时检查历史记录（生成滚动列表）
         window.addEventListener('DOMContentLoaded', async () => {
             if ('showDirectoryPicker' in window) {
                 recentRecords = await getRecentDirectoryHandles();
                 if (recentRecords && recentRecords.length > 0) {
                     resumeArea.style.display = 'block';
-                    const historySelect = document.getElementById('history-select');
-                    historySelect.innerHTML = ''; // 清空下拉框
+                    const historyList = document.getElementById('history-list');
+                    historyList.innerHTML = ''; // 清空列表
                     
                     recentRecords.forEach((record, index) => {
-                        const opt = document.createElement('option');
-                        opt.value = index; 
+                        const item = document.createElement('div');
+                        item.className = 'history-item';
                         
-                        // 格式化时间为友好展示，例如: "2025-12-13 15:30"
+                        // 格式化时间为友好展示，例如: "2026-03-22 15:30"
                         const d = new Date(record.timestamp);
                         const dateStr = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
                         
-                        opt.text = `📁 ${record.name} (最后访问: ${dateStr})`;
-                        historySelect.appendChild(opt);
+                        item.innerHTML = `
+                            <span class="folder-name">📁 ${record.name}</span>
+                            <span class="visit-time">最后访问: ${dateStr}</span>
+                        `;
+                        
+                        // 绑定点击事件，直接播放
+                        item.onclick = () => playFromHistory(index);
+                        
+                        historyList.appendChild(item);
                     });
                 }
             }
@@ -364,29 +384,9 @@
             await analyzeImages(imageFiles);
         }
 
-        // 1. 文件选择与恢复逻辑
-        // 点击"选择新文件夹"
-        uploadArea.onclick = async () => {
-            if ('showDirectoryPicker' in window) {
-                try {
-                    const dirHandle = await window.showDirectoryPicker();
-                    await saveDirectoryHandle(dirHandle); // 缓存句柄到数据库 (自动维护10条记录)
-                    const files = await getFilesFromHandle(dirHandle);
-                    await processSelectedFiles(files);
-                } catch (err) {
-                    console.log("用户取消了选择或不支持API", err);
-                }
-            } else {
-                input.click(); // 降级方案
-            }
-        };
-
-        // 点击"读取并播放" (多条记录)
-        document.getElementById('resume-btn').onclick = async () => {
-            const historySelect = document.getElementById('history-select');
-            const selectedIndex = historySelect.value;
-            
-            if (selectedIndex === "" || !recentRecords[selectedIndex]) return;
+        // --- 读取历史记录并播放的核心逻辑 ---
+        async function playFromHistory(selectedIndex) {
+            if (selectedIndex === undefined || !recentRecords[selectedIndex]) return;
             
             const record = recentRecords[selectedIndex];
             const savedHandle = record.handle;
@@ -408,6 +408,22 @@
             } catch (err) {
                 alert("无法读取该历史文件夹，可能已被移动或删除。请选择其他记录或新文件夹。");
                 console.error(err);
+            }
+        }
+
+        // 1. 文件选择新文件夹
+        uploadArea.onclick = async () => {
+            if ('showDirectoryPicker' in window) {
+                try {
+                    const dirHandle = await window.showDirectoryPicker();
+                    await saveDirectoryHandle(dirHandle); // 缓存句柄到数据库 (自动维护10条记录)
+                    const files = await getFilesFromHandle(dirHandle);
+                    await processSelectedFiles(files);
+                } catch (err) {
+                    console.log("用户取消了选择或不支持API", err);
+                }
+            } else {
+                input.click(); // 降级方案
             }
         };
 
