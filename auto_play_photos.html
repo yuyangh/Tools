@@ -689,8 +689,8 @@
             };
         }
 
-        // --- 4. 安全移至自建废纸篓功能 (替代直接物理删除) ---
-        deleteBtn.onclick = () => {
+        // --- 4. 安全移至自建废纸篓功能 (一键无确认版) ---
+        deleteBtn.onclick = async () => {
             if (!currentPlayingFile) return;
 
             // 检查当前模式是否支持 API
@@ -699,57 +699,49 @@
                 return;
             }
 
-            // 操作前先暂停播放
+            // 操作前先暂停播放，确保文件移动时不会自动切图引发异常
             const wasPlaying = isPlaying;
             if (isPlaying) playPauseBtn.click(); 
 
-            showModal(
-                `确定要把这张不满意照片移入废纸篓吗？\n\n📄 ${currentPlayingFile.name}\n\n💡 照片将被移动到图库根目录的 "_废纸篓_Trash" 文件夹中，下次扫描将自动屏蔽它，不会永久丢失。`, 
-                'confirm', 
-                async () => {
-                    try {
-                        const rootHandle = currentPlayingFile.rootHandle;
-                        
-                        // 1. 获取或创建废纸篓文件夹
-                        const trashHandle = await rootHandle.getDirectoryHandle('_废纸篓_Trash', { create: true });
-                        
-                        // 2. 为了防止同名文件（比如两个子文件夹里都有 DSC001.JPG）冲突，加个时间戳前缀
-                        const safeFileName = Date.now() + ' ' + currentPlayingFile.handleName;
-                        
-                        // 3. 在废纸篓里创建一个新文件
-                        const newFileHandle = await trashHandle.getFileHandle(safeFileName, { create: true });
-                        const writable = await newFileHandle.createWritable();
-                        
-                        // 4. 把当前文件的内容写入废纸篓的新文件里 (currentPlayingFile 本质上是个 Blob/File 对象)
-                        await writable.write(currentPlayingFile);
-                        await writable.close();
+            try {
+                const rootHandle = currentPlayingFile.rootHandle;
+                
+                // 1. 获取或创建废纸篓文件夹
+                const trashHandle = await rootHandle.getDirectoryHandle('_废纸篓_Trash', { create: true });
+                
+                // 2. 为了防止同名文件冲突，加个时间戳前缀
+                const safeFileName = Date.now() + ' ' + currentPlayingFile.handleName;
+                
+                // 3. 在废纸篓里创建一个新文件
+                const newFileHandle = await trashHandle.getFileHandle(safeFileName, { create: true });
+                const writable = await newFileHandle.createWritable();
+                
+                // 4. 把当前文件的内容写入废纸篓的新文件里
+                await writable.write(currentPlayingFile);
+                await writable.close();
 
-                        // 5. 复制完成后，从原目录物理删除源文件
-                        await currentPlayingFile.parentHandle.removeEntry(currentPlayingFile.handleName);
-                        
-                        // 从内存中的三大数组清理掉这张图
-                        landscapePhotos = landscapePhotos.filter(f => f !== currentPlayingFile);
-                        portraitPhotos = portraitPhotos.filter(f => f !== currentPlayingFile);
-                        currentQueue = currentQueue.filter(f => f !== currentPlayingFile);
-                        
-                        showToast(`🗑️ 已安全移至 _废纸篓_Trash: ${currentPlayingFile.name}`);
-                        
-                        updatePhotoQueue(); // 刷新右上角数量统计
-                        nextSlide(); // 立刻切到下一张
-                        
-                        if (wasPlaying && !isPlaying) playPauseBtn.click();
+                // 5. 复制完成后，从原目录物理删除源文件
+                await currentPlayingFile.parentHandle.removeEntry(currentPlayingFile.handleName);
+                
+                // 从内存中的三大数组清理掉这张图
+                landscapePhotos = landscapePhotos.filter(f => f !== currentPlayingFile);
+                portraitPhotos = portraitPhotos.filter(f => f !== currentPlayingFile);
+                currentQueue = currentQueue.filter(f => f !== currentPlayingFile);
+                
+                // 使用底部的 Toast 给出轻量化提示，不打断浏览
+                showToast(`🗑️ 已直接移至废纸篓: ${currentPlayingFile.name}`);
+                
+                updatePhotoQueue(); // 刷新右上角数量统计
+                nextSlide(); // 立刻切到下一张
+                
+                // 恢复播放状态
+                if (wasPlaying && !isPlaying) playPauseBtn.click();
 
-                    } catch (e) {
-                        console.error("移动至废纸篓失败:", e);
-                        showModal('操作失败！可能是由于您未授予"编辑"权限，或者该照片正被其他程序占用。');
-                        if (wasPlaying && !isPlaying) playPauseBtn.click();
-                    }
-                },
-                () => {
-                    // 取消：恢复播放
-                    if (wasPlaying && !isPlaying) playPauseBtn.click();
-                }
-            );
+            } catch (e) {
+                console.error("移动至废纸篓失败:", e);
+                showModal('操作失败！可能是由于您未授予"编辑"权限，或者该照片正被其他程序占用。');
+                if (wasPlaying && !isPlaying) playPauseBtn.click();
+            }
         };
 
         // --- Toast 提示功能 ---
